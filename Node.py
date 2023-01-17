@@ -8,6 +8,7 @@ class Node:
         self.variables = [] # node variable (data)
         self.surs_ptr = [] # pointer to specific row in surrogate pool
         self.score = [] # score(category) the surrogate data belongs
+        self.surs_index = 0 # current surrogate index
 
         # *using list as there might be more than one value being read from one node(sensor)
     
