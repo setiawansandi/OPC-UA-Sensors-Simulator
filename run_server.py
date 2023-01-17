@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import pickle
 import random
+import copy
 
 from asyncua import Server, ua
 from asyncua.common.methods import uamethod
@@ -109,8 +110,20 @@ async def main():
             await asyncio.sleep(1)
             for node in NODE_LIST:
                 # _logger.info("Set value of %s to %.1f", NODE_LIST[0][0], new_val)
-                #await NODE_LIST[0][0].write_value(new_val)
-                pass
+
+                # loop through each element of surrogate data
+                if node.surs_index < len(SURS_DATA):
+                    new_val = str(SURS_DATA[node.surs_ptr[0]][node.surs_index][0])
+                    node.surs_index += 1
+                else:
+                    new_val = SURS_DATA[node.surs_ptr[0]][0][0]
+                    node.surs_index = 1
+
+                await node.variables[0].write_value(new_val)
+    
+            '''
+            if not end of array
+            '''
             # new_val = await NODE_LIST[0][0].get_value() + 0.1
             # _logger.info("Set value of %s to %.1f", NODE_LIST[0][0], new_val)
             # await NODE_LIST[0][0].write_value(new_val)
