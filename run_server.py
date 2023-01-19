@@ -116,7 +116,7 @@ async def main():
                     new_val = str(SURS_DATA[node.surs_ptr[0]][node.surs_index][0])
                     node.surs_index += 1
                 else:
-                    new_val = SURS_DATA[node.surs_ptr[0]][0][0]
+                    new_val = str(SURS_DATA[node.surs_ptr[0]][0][0])
                     node.surs_index = 1
 
                 await node.variables[0].write_value(new_val)
