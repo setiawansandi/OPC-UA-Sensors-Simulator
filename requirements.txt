@@ -1,0 +1,13 @@
+aiofiles==22.1.0
+aiosqlite==0.18.0
+asyncua==1.0.1
+cffi==1.15.1
+cryptography==39.0.0
+numpy==1.24.1
+pycparser==2.21
+python-dateutil==2.8.2
+python-decouple==3.7
+pytz==2022.7.1
+six==1.16.0
+sortedcontainers==2.4.0
+wincertstore==0.2
