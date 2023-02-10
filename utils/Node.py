@@ -24,4 +24,7 @@ class Node:
     
     def update_surs_ptr(self, index, ptr):
         self.surs_ptr[index] = ptr
+    
+    def update_score(self, index, score):
+        self.score[index] = score
 
