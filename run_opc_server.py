@@ -3,24 +3,26 @@ import logging
 import numpy as np
 import pickle
 import random
-import copy
 
 from asyncua import Server, ua
 from asyncua.common.methods import uamethod
 
-from Node import Node
+from utils.Node import Node
 
 # Initialization
-TOTAL_GATEWAY = 2
-TOTAL_NODE = 3 # no. of node in each gateway
-GW_LIST = [] # store gateway objs
-NODE_LIST = [] # store node(sensor) objs
-SURS_CLASS = None # surrogate class
-SURS_DATA = None # surrogate data
+OUTPUT_INTERVAL = 1 # Delay between each packet in second
+TOTAL_GATEWAY = 2 # no.of simulated gateway
+TOTAL_NODE = 100 # no. of node in each gateway (wihart 1410s supports up to 200 only)
+
+GW_LIST = [] # stores gateway objs
+NODE_LIST = [] # stores node(sensor) objs
+
+SURS_CLASS = None # stores surrogate class
+SURS_DATA = None # stores surrogate data
 
 
-def load_surs_from_pkl():
-    with open("data/surs.pkl", "rb") as f:
+def load_surs_from_pkl(filename=None):
+    with open(filename, "rb") as f:
         surs_obj = pickle.load(f)
 
     global SURS_CLASS, SURS_DATA # indicate vars are global
@@ -41,7 +43,7 @@ async def main():
     _logger = logging.getLogger(__name__)
 
     # v==================== Load Surrogate Data =====================v
-    load_surs_from_pkl()
+    load_surs_from_pkl(filename="data/temperature.pkl")
 
 
     # v======================== Setup Server ========================v
@@ -67,29 +69,36 @@ async def main():
 
         # << Sensor nodes (object), simulating sensor devices >>
         for n_node in range(TOTAL_NODE):
-            # Node is a defined class that mimics typical sensor data structure
-            node = Node(await GW_LIST[n_gw].add_object(idx, f"Temperature {n_node}"))
+            
+            # initialise node
+            node = await GW_LIST[n_gw].add_object(idx, f"Temperature {n_node}")
 
             # << Node's variables, are values transmitted by sensor >>
-            # randomly select data from the surrogate data pool; n=index
-            n = random.randint(0, len(SURS_DATA)-1)
+            # randomly select data from the surrogate data pool; rand_n=index
+            rand_n = random.randint(0, len(SURS_DATA)-1)
 
             # get score and value of the first element
-            score = SURS_CLASS[n]
-            value = str(SURS_DATA[n][0][0])
-            # ^^[n] = which surr; [0] = 1st row; [0] = 1st col (remain 0 if there's only 1 col)
+            score = SURS_CLASS[rand_n]
+            value = str(SURS_DATA[rand_n][0][0])
+            # ^^[rand_n] = surr index; [0] = 1st row; [0] = 1st col (remain 0 if there's only 1 col)
 
-            # set the node id & value
-            nodeID = f'ns=2; s=DataSources.sim-wihartgw{n_gw}.Temperature {n_node}.PV' #"ns=number; s=whatYouWantToCallYourID"
-            variable = await node.node_obj.add_variable(nodeID, "PV", value)
+            # set the node's id & value
+            nodeID = f'ns=2; s=DataSources.sim-wihartgw{n_gw}.Temperature {n_node}.PV' 
+            # ^ format: ns=number; s=whatYouWantToCallYourID
+            variable = await node.add_variable(nodeID, "PV", value)
 
+            # set variable's properties #TODO append to Node class
+            # var_property = []
+            # var_property.append(await variable.add_attribute(, "Definition",))
+
+            node_obj = Node(node)
             # add variables, surr pointers, and data score(category)
-            node.add_var(variable)
-            node.add_surs_ptr(n)
-            node.add_score(score)
+            node_obj.add_var(variable)
+            node_obj.add_surs_ptr(rand_n)
+            node_obj.add_score(score)
 
             # save the node to a list
-            NODE_LIST.append(node)
+            NODE_LIST.append(node_obj)
 
     
     # << Server object >>
@@ -107,28 +116,35 @@ async def main():
     _logger.info("Starting server!")
     async with server:
         while True:
-            await asyncio.sleep(1)
-            for node in NODE_LIST:
-                # _logger.info("Set value of %s to %.1f", NODE_LIST[0][0], new_val)
+            await asyncio.sleep(OUTPUT_INTERVAL) # delay between each batch transfer
 
+            for node in NODE_LIST:
                 # loop through each element of surrogate data
-                if node.surs_index < len(SURS_DATA):
+                # if not the end of array
+                if node.surs_index < len(SURS_DATA[node.surs_ptr[0]]): # length of column
+                    # print(f'{node.surs_index} - {node.surs_ptr[0]}') # DEBUG
                     new_val = str(SURS_DATA[node.surs_ptr[0]][node.surs_index][0])
                     node.surs_index += 1
+                # else select new set of surrogate
                 else:
+                    # randomly select new set of data from the surrogate data pool; rand_n=index
+                    rand_n = random.randint(0, len(SURS_DATA)-1)
+                    # get score and value of the first element
+                    score = SURS_CLASS[rand_n]
+                    value = str(SURS_DATA[rand_n][0][0])
+
+                    # add variables, surr pointers, and data score(category)
+                    node.update_surs_ptr(index=0, ptr=rand_n) # update first element in the list
+                    node.update_score(index=0, score=score)
+
                     new_val = str(SURS_DATA[node.surs_ptr[0]][0][0])
                     node.surs_index = 1
 
                 await node.variables[0].write_value(new_val)
-    
-            '''
-            if not end of array
-            '''
-            # new_val = await NODE_LIST[0][0].get_value() + 0.1
-            # _logger.info("Set value of %s to %.1f", NODE_LIST[0][0], new_val)
-            # await NODE_LIST[0][0].write_value(new_val)
+
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     asyncio.run(main(), debug=True)
+    
